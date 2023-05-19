@@ -31,7 +31,7 @@ linter:
     - avoid_bool_literals_in_conditional_expressions
     - cancel_subscriptions
     - close_sinks
-    - lines_longer_than_80_chars
+    - lines_longer_than_80_chars: false
     - omit_local_variable_types
     - only_throw_errors
     - prefer_final_in_for_each

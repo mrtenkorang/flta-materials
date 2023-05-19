@@ -1,7 +1,17 @@
 import 'dart:math';
-
 import 'package:flutter/material.dart';
-// TODO: Add imports
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../network/service.dart';
+import '../widgets/custom_dropdown.dart';
+import '../colors.dart';
+import 'package:chopper/chopper.dart';
+import '../../network/model_response.dart';
+import 'dart:collection';
+
+import '../../network/recipe_model.dart';
+import 'package:flutter/services.dart';
+import '../recipe_card.dart';
+import 'recipe_details.dart';
 
 class RecipeList extends StatefulWidget {
   const RecipeList({Key? key}) : super(key: key);
@@ -11,10 +21,13 @@ class RecipeList extends StatefulWidget {
 }
 
 class _RecipeListState extends State<RecipeList> {
-  // TODO: Add key
+  static const String prefSearchKey = 'previousSearches';
+
   late TextEditingController searchTextController;
   final ScrollController _scrollController = ScrollController();
-  List currentSearchList = [];
+
+  List<APIHits> currentSearchList = [];
+
   int currentCount = 0;
   int currentStartPosition = 0;
   int currentEndPosition = 20;
@@ -22,38 +35,35 @@ class _RecipeListState extends State<RecipeList> {
   bool hasMore = false;
   bool loading = false;
   bool inErrorState = false;
-  // TODO: Add searches array
-  // TODO: Add _currentRecipes1
+
+  List<String> previousSearches = <String>[];
 
   @override
   void initState() {
     super.initState();
-    // TODO: Call loadRecipes()
 
-    // TODO: Call getPreviousSearches
+    getPreviousSearches();
+
     searchTextController = TextEditingController(text: '');
-    _scrollController
-      .addListener(() {
-        final triggerFetchMoreSize =
-            0.7 * _scrollController.position.maxScrollExtent;
+    _scrollController.addListener(() {
+      final triggerFetchMoreSize =
+          0.7 * _scrollController.position.maxScrollExtent;
 
-        if (_scrollController.position.pixels > triggerFetchMoreSize) {
-          if (hasMore &&
-              currentEndPosition < currentCount &&
-              !loading &&
-              !inErrorState) {
-            setState(() {
-              loading = true;
-              currentStartPosition = currentEndPosition;
-              currentEndPosition =
-                  min(currentStartPosition + pageCount, currentCount);
-            });
-          }
+      if (_scrollController.position.pixels > triggerFetchMoreSize) {
+        if (hasMore &&
+            currentEndPosition < currentCount &&
+            !loading &&
+            !inErrorState) {
+          setState(() {
+            loading = true;
+            currentStartPosition = currentEndPosition;
+            currentEndPosition =
+                min(currentStartPosition + pageCount, currentCount);
+          });
         }
-      });
+      }
+    });
   }
-
-  // TODO: Add loadRecipes
 
   @override
   void dispose() {
@@ -61,9 +71,25 @@ class _RecipeListState extends State<RecipeList> {
     super.dispose();
   }
 
-  // TODO: Add savePreviousSearches
+  // saves all the previous searches data to the local storage in the phone
+  void savePreviousSearches() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setStringList(prefSearchKey, previousSearches);
+  }
 
-  // TODO: Add getPreviousSearches
+  void getPreviousSearches() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (prefs.containsKey(prefSearchKey)) {
+      final searches = prefs.getStringList(prefSearchKey);
+
+      if (searches != null) {
+        previousSearches = searches;
+      } else {
+        previousSearches = <String>[];
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,7 +117,16 @@ class _RecipeListState extends State<RecipeList> {
         child: Row(
           children: [
             // Replace
-            const Icon(Icons.search),
+            IconButton(
+                onPressed: () {
+                  startSearch(searchTextController.text);
+
+                  final currentFocus = FocusScope.of(context);
+                  if (!currentFocus.hasPrimaryFocus) {
+                    currentFocus.unfocus();
+                  }
+                },
+                icon: const Icon(Icons.search)),
             const SizedBox(
               width: 6.0,
             ),
@@ -105,19 +140,37 @@ class _RecipeListState extends State<RecipeList> {
                           border: InputBorder.none, hintText: 'Search'),
                       autofocus: false,
                       controller: searchTextController,
-                      onChanged: (query) => {
-                        if (query.length >= 3) {
-                            // Rebuild list
-                            setState(() {
-                                currentSearchList.clear();
-                                currentCount = 0;
-                                currentEndPosition = pageCount;
-                                currentStartPosition = 0;
-                              },
-                            )
-                          }
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (value) {
+                        startSearch(searchTextController.text);
                       },
                     ),
+                  ),
+                  PopupMenuButton<String>(
+                    itemBuilder: (BuildContext context) {
+                      return previousSearches
+                          .map<CustomDropdownMenuItem<String>>((String value) {
+                        return CustomDropdownMenuItem(
+                          value: value,
+                          text: value,
+                          callback: () {
+                            setState(() {
+                              previousSearches.remove(value);
+                              savePreviousSearches();
+                              Navigator.pop(context);
+                            });
+                          },
+                        );
+                      }).toList();
+                    },
+                    icon: const Icon(
+                      Icons.arrow_drop_down,
+                      color: lightGrey,
+                    ),
+                    onSelected: (String value) {
+                      searchTextController.text = value;
+                      startSearch(searchTextController.text);
+                    },
                   ),
                 ],
               ),
@@ -129,18 +182,118 @@ class _RecipeListState extends State<RecipeList> {
     );
   }
 
-  // TODO: Add startSearch
+  void startSearch(String value) async {
+    setState(() {
+      currentSearchList.clear();
+      currentCount = 0;
+      currentEndPosition = pageCount;
+      currentStartPosition = 0;
+      hasMore = true;
+      value = value.trim();
 
-  // TODO: Replace method
+      if (!previousSearches.contains(value)) {
+        previousSearches.add(value);
+
+        savePreviousSearches();
+      }
+    });
+  }
+
   Widget _buildRecipeLoader(BuildContext context) {
     if (searchTextController.text.length < 3) {
       return Container();
     }
-    // Show a loading indicator while waiting for the movies
-    return const Center(
-      child: CircularProgressIndicator(),
+    return FutureBuilder<Response<Result<ApiRecipeQuery>>>(
+      future: RecipeService.create().queryRecipes(searchTextController.text.trim(),
+          currentStartPosition, currentEndPosition),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error.toString(),
+                textAlign: TextAlign.center,
+                textScaleFactor: 1.3,
+              ),
+            );
+          }
+          loading = false;
+
+          if(snapshot.data?.isSuccessful == false){
+            var errorMessage = 'Problem getting data';
+
+            if(snapshot.data?.error != null && snapshot.data?.error is LinkedHashMap){
+              final map = snapshot.data?.error as LinkedHashMap;
+              errorMessage = map['message'];
+            }
+            return Center(
+              child: Text(
+                errorMessage,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18.0),
+              ),
+            );
+          }
+
+          final result = snapshot.data?.body;
+          if(result == null || result is Error){
+            inErrorState = true;
+
+            return _buildRecipeList(context, currentSearchList);
+          }
+          final query = (result as Success).value;
+
+          inErrorState = false;
+          if (query != null) {
+            currentCount = query.count;
+            hasMore = query.more;
+            currentSearchList.addAll(query.hits);
+            if (query.to < currentEndPosition) {
+              currentEndPosition = query.to;
+            }
+          }
+          return _buildRecipeList(context, currentSearchList);
+        }
+        else{
+          if(currentCount == 0){
+            return const Center(child: CircularProgressIndicator());
+          }else{
+            return _buildRecipeList(context, currentSearchList);
+          }
+        }
+      },
     );
   }
 
-  // TODO: Add _buildRecipeCard
+  Widget _buildRecipeCard(
+      BuildContext topLevelContext, List<APIHits> hits, int index) {
+    final recipe = hits[index].recipe;
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(topLevelContext, MaterialPageRoute(builder: (context) {
+          return const RecipeDetails();
+        }));
+      },
+      child: recipeCard(recipe),
+    );
+  }
+
+  Widget _buildRecipeList(BuildContext recipeListContext, List<APIHits> hits) {
+    final size = MediaQuery.of(recipeListContext).size;
+
+    const itemHeight = 310;
+    final itemWidth = size.width / 2;
+
+    return Flexible(
+        child: GridView.builder(
+            controller: _scrollController,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: (itemWidth / itemHeight),
+            ),
+            itemCount: hits.length,
+            itemBuilder: (context, index) {
+              return _buildRecipeCard(context, hits, index);
+            }));
+  }
 }

@@ -7,6 +7,8 @@ import 'recipes/recipe_list.dart';
 import 'shopping/shopping_list.dart';
 import 'package:flutter/material.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class MainScreen extends StatefulWidget {
   const MainScreen({Key? key}) : super(key: key);
 
@@ -17,7 +19,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   List<Widget> pageList = <Widget>[];
-  // TODO: Add index key
+  static const String prefSelectedKey = 'selectedIndex';
 
   @override
   void initState() {
@@ -25,18 +27,32 @@ class _MainScreenState extends State<MainScreen> {
     pageList.add(const RecipeList());
     pageList.add(const MyRecipesList());
     pageList.add(const ShoppingList());
-    // TODO: Call getCurrentIndex
+    getCurrentIndex();
   }
 
-  // TODO: Add saveCurrentIndex
+  void saveCurrentIndex() async{
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setInt(prefSelectedKey, _selectedIndex);
+  }
 
-  // TODO: Add getCurrentIndex
+  void getCurrentIndex() async{
+    final prefs = await SharedPreferences.getInstance();
+    if(prefs.containsKey(prefSelectedKey)){
+        setState(() {
+          final index = prefs.getInt(prefSelectedKey);
+          if(index != null){
+            _selectedIndex = index;
+          }
+        });
+      }
+    }
+
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
-    // TODO: Call saveCurrentIndex
+    saveCurrentIndex();
   }
 
   @override

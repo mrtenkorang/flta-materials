@@ -14,7 +14,7 @@ class AppStateManager extends ChangeNotifier {
   // Checks to see if the user is logged in
   bool _loggedIn = false;
   // Checks to see if the user has completed onboarding
-  bool _onboardingComplete = false;
+  bool  _onboardingComplete = false;
   // Records the current tab the user is on.
   int _selectedTab = FooderlichTab.explore;
   // Stores user state properties on platform specific file system.
@@ -31,6 +31,7 @@ class AppStateManager extends ChangeNotifier {
     _loggedIn = await _appCache.isUserLoggedIn();
     // Check if the user completed onboarding
     _onboardingComplete = await _appCache.didCompleteOnboarding();
+
   }
 
   void login(String username, String password) async {

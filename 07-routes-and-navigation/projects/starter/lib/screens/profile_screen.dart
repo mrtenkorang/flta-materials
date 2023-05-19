@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../components/circle_image.dart';
@@ -45,17 +46,22 @@ class ProfileScreenState extends State<ProfileScreen> {
         ListTile(
           title: const Text('View raywenderlich.com'),
           onTap: () async {
-            if (kIsWeb || Platform.isMacOS) {
+            if (kIsWeb || Platform.isLinux) {
               await launchUrl(Uri.parse('https://www.raywenderlich.com/'));
             } else {
-              // TODO: Navigate to WebView
+              context.goNamed(
+                'rw',
+                params: {
+                  'tab': '${widget.currentTab}',
+                },
+              );
             }
           },
         ),
         ListTile(
           title: const Text('Log out'),
           onTap: () {
-            // TODO: Logout user
+            Provider.of<AppStateManager>(context, listen: false).logout();
           },
         )
       ],

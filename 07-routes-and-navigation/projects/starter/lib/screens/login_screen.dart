@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/models.dart';
 
 class LoginScreen extends StatelessWidget {
   final String? username;
@@ -31,9 +33,9 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              buildTextfield(username ?? '🍔 username'),
+              buildTextField(username ?? '🍔 username'),
               const SizedBox(height: 16),
-              buildTextfield('🎹 password'),
+              buildTextField('🎹 password'),
               const SizedBox(height: 16),
               buildButton(context),
             ],
@@ -56,13 +58,13 @@ class LoginScreen extends StatelessWidget {
           style: TextStyle(color: Colors.white),
         ),
         onPressed: () async {
-          // TODO: Initiate Login
+          Provider.of<AppStateManager>(context, listen: false).login('username', 'password');
         },
       ),
     );
   }
 
-  Widget buildTextfield(String hintText) {
+  Widget buildTextField(String hintText) {
     return TextField(
       cursorColor: rwColor,
       decoration: InputDecoration(
